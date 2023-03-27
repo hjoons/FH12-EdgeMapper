@@ -1,6 +1,7 @@
 import utils
 import socket
 import os
+import torch
 
 server_port = 8888
 
@@ -50,19 +51,16 @@ def main():
         # After setup info receive global model
         global_file = utils.receive_scp_file(dev_path, sock)
         print(f'Received global model: {global_file}')
+        print(f"Model loaded!")
         
         # Start Training ack message
         utils.send_message(sock, 'Start')
 
         # train func
         print('Starting training')
-        utils.train(learning_rate, num_epochs)
+        federated_file = utils.train(learning_rate, num_epochs, global_file)
         print('Training complete')
-
-        # dummy trained file
-        federated_file = f"federated_{device_num}.pth"
-        with open(dev_path + federated_file, "w") as file:
-            file.write("Dummy file for federated training")
+        
         print(f"Training saved as {dev_path + federated_file}")
 
         # training done
