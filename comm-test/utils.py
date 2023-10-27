@@ -4,6 +4,14 @@ from paramiko import Transport
 from scp import SCPClient
 import zipfile
 import os
+import time
+
+# def send_message(channel, message: str):
+#     channel.send(message + "\n")
+
+# def receive_message(channel) -> str:
+#     data = channel.recv(1024)
+#     return data.decode("utf-8").strip()
 
 def zip_file(file, zip_file_name):
     try:
@@ -42,7 +50,7 @@ def send_scp_file(client, channel, local_file, remote_path, file_name, file_size
             received = True
 
     
-def receive_scp_file(channel, destination_file_path):
+def receive_scp_file(channel, destination_file_path: str):
     received = False
     while not received:
         msg = receive_message(channel)
@@ -57,3 +65,11 @@ def receive_scp_file(channel, destination_file_path):
                 received = True
             else:
                 send_message(channel, "Resend")
+
+
+def train(learning_rate, num_epochs):
+    # not using any model information for this step
+    for i in range(0,5):
+        print(i)
+        # adding 1 second time delay
+        time.sleep(1)
