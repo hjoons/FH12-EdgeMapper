@@ -69,14 +69,24 @@ class SSHMessageClient:
         self.ssh_client.close()
         print("SSH connection closed")
 
-    def device_handler(self):
+def device_handler(self):
         status = True
         while status:
             msg = ''
             while msg != 'ACK':
                 msg = self.receive_message()
             self.send_message("learning_rate;num_epochs;local_path;remote_path")
-            utils.send_scp_file(self, local_path)
+            utils.send_scp_file(self, local_path_to_model) # send the model
+            self.send_message("filename;filesize")
+            #maybe add something about sending if not received, work with server
+            while msg != 'Start':
+                msg = self.receive_message()
+            self.send_message("ACK")
+            while msg != 'Done':
+                msg = self.receive_message()
+            self.send_message("ACK")
+            utils.receive_scp_file() # get updated model, figure params later
+            print('Received local model')
 
 
 if __name__ == "__main__":
