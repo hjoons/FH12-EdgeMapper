@@ -1,6 +1,7 @@
 import socket
 import paramiko
 import utils
+import Server
 
 
 #def send_message(conn, message):
@@ -40,54 +41,42 @@ class SSHMessageClient:
         self.password = password
         self.ssh_client = paramiko.SSHClient()
         self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.channel = paramiko.Channel(2)
 
     def connect(self):
+        print('Trying to connect')
         try:
             self.ssh_client.connect(self.hostname, self.port, self.username, self.password)
             print(f"Connected to {self.hostname} via SSH")
+            self.channel = self.ssh_client.get_transport().open_channel('x11')
         except Exception as e:
             print(f"Error: {str(e)}")
+            exit(1)
 
-    def send_message(self, message):
-        try:
-            stdin, stdout, stderr = self.ssh_client.exec_command(f'echo "{message}" > message.txt')
-            print(f"Sent message: {message}")
-        except Exception as e:
-            print(f"Error: {str(e)}")
-
-    def receive_message(self):
-        try:
-            stdin, stdout, stderr = self.ssh_client.exec_command('cat message.txt')
-            messages = stdout.read().decode()
-            print(f"Received messages: {messages}")
-            return messages
-        except Exception as e:
-            print(f"Error: {str(e)}. Resend")
-            return None
 
     def disconnect(self):
         self.ssh_client.close()
         print("SSH connection closed")
 
-def device_handler(self):
-        status = True
-        while status:
-            msg = ''
-            while msg != 'ACK':
-                msg = self.receive_message()
-            self.send_message("learning_rate;num_epochs;local_path;remote_path")
-            utils.send_scp_file(self, local_path_to_model) # send the model
-            self.send_message("filename;filesize")
-            #maybe add something about sending if not received, work with server
-            while msg != 'Start':
-                msg = self.receive_message()
-            self.send_message("ACK")
-            while msg != 'Done':
-                msg = self.receive_message()
-            self.send_message("ACK")
-            utils.receive_scp_file() # get updated model, figure params later
-            print('Received local model')
-
+    def device_handler(self):
+            status = True
+            while status:
+                msg = ''
+                while msg != 'ACK':
+                    msg = utils.receive_message(self.channel)
+                utils.send_message(self.channel, "learning_rate;num_epochs;local_path;remote_path")
+                utils.send_scp_file(self, '/fake_model.py') # send the model
+                msg = "filename;filesize"
+                utils.send_message(self.channel, msg)
+                #maybe add something about sending if not received, work with server
+                while msg != 'Start':
+                    msg = utils.receive_message(self.channel)
+                utils.send_message(self.channel, "ACK")
+                while msg != 'Done':
+                    msg = utils.receive_message(self.channel)
+                utils.send_message(self.channel, "ACK")
+                utils.receive_scp_file() # get updated model, figure params later
+                print('Received local model')
 
 if __name__ == "__main__":
     hostname = '127.0.0.1'
@@ -103,10 +92,10 @@ if __name__ == "__main__":
     
     # Send a message
     message_to_send = "Connect"
-    ssh_message_client.send_message(message_to_send)
+    utils.send_message(ssh_message_client.channel, message_to_send)
 
     # Receive messages
-    received_messages = ssh_message_client.receive_message()
+    received_messages = utils.receive_message(ssh_message_client.channel)
     
     ssh_message_client.disconnect()
 

@@ -6,12 +6,36 @@ import zipfile
 import os
 import time
 
+
 # def send_message(channel, message: str):
 #     channel.send(message + "\n")
 
 # def receive_message(channel) -> str:
 #     data = channel.recv(1024)
 #     return data.decode("utf-8").strip()
+# def send_message(channel, message):
+#     try:
+#         stdin, stdout, stderr = self.ssh_client.exec_command(f'echo "{message}" > message.txt')
+#         print(f"Sent message: {message}")
+#     except Exception as e:
+#         print(f"Error: {str(e)}")
+
+# def receive_message(channel):
+#     try:
+#         stdin, stdout, stderr = self.ssh_client.exec_command('cat message.txt')
+#         messages = stdout.read().decode()
+#         print(f"Received messages: {messages}")
+#         return messages
+#     except Exception as e:
+#         print(f"Error: {str(e)}. Resend")
+#         return None
+
+def send_message(channel: paramiko.Channel, message: str):
+    channel.send(message.encode('utf-8'))
+
+def receive_message(channel: paramiko.Channel):
+    received_message = channel.recv(1024).decode('utf-8')
+    return received_message
 
 def zip_file(file, zip_file_name):
     try:
