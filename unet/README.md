@@ -1,0 +1,1 @@
+## Make sure you have the nyuv2 .mat file in the same directory to train.
