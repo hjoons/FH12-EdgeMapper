@@ -30,6 +30,8 @@ def evaluate(model, test_loader):
     d1 = 0
     d2 = 0
     d3 = 0
+    rel = 0
+    rms = 0
     for batchidx, batch in enumerate(test_loader):
         print(f"{batchidx + 1} / {len(test_loader)}")
         inputs, targets = batch
@@ -39,9 +41,17 @@ def evaluate(model, test_loader):
             d1 += threshold_percentage(outputs, targets, 1.25)
             d2 += threshold_percentage(outputs, targets, 1.5625)
             d3 += threshold_percentage(outputs, targets, 1.953125)
-    
+
+            rel += REL(outputs, targets)
+            
+            rms += RMS(outputs, targets)
+
     d1 = d1 / len(test_loader)
     d2 = d2 / len(test_loader)
     d3 = d3 / len(test_loader)
-    deltas = (d1, d2, d3)
-    print(deltas)
+    rel = (rel / len(test_loader)).item()
+    rms = (rms / len(test_loader)).item()
+    deltas = (d1.item(), d2.item(), d3.item())
+    print(f"deltas: {deltas}")
+    print(f"REL: {rel}") # Not working correctly
+    print(f"RMS: {rms}")

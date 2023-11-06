@@ -7,14 +7,35 @@ import dataset
 from model import UNet
 from torch.utils.tensorboard import SummaryWriter
 
-def custom_loss(output, target):
-    di = target - output
+def custom_loss(pred, target):
+    di = target - pred
     n = 640*480
     di2 = torch.pow(di, 2)
     first_term = torch.sum(di2, (1, 2, 3)) / n
     second_term = .5 * torch.pow(torch.sum(di, (1, 2, 3)), 2) / (n**2)
     loss = first_term - second_term
     return loss.mean()
+
+def silog(pred, target, delta=.5):
+    """
+    Scale Invariant Log Loss
+    https://papers.nips.cc/paper/2014/file/7bccfde7714a1ebadf06c5f4cea752c1-Paper.pdf
+
+    Args:
+        pred (torch.Tensor): Predictions.
+        target (torch.Tensor): Ground truth.
+        delta (float, optional): Delta that goes along with literature. Defaults to .5.
+
+    Returns:
+        float: SILog Loss. 
+    """
+    mask = (pred > 0) & (target > 0)
+    n = len(torch.nonzero(mask))
+    
+    d = torch.log(pred[mask]) - torch.log(target[mask])
+    loss = (1 / n) * (torch.sum(d ** 2)) - (delta / (n ** 2)) * (torch.sum(d) ** 2)
+    return loss
+    
 
 def train(lr=1e-3, epochs=200):
     writer = SummaryWriter('logs')
@@ -34,7 +55,7 @@ def train(lr=1e-3, epochs=200):
     
     model = UNet().to(torch.device(device))
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    criterion = custom_loss
+    criterion = silog
     
     train_loss = []
     test_loss = []
