@@ -4,12 +4,13 @@ from scp import SCPClient
 import zipfile
 import os
 import time
+import sys
 
 def zip_file(file, zip_file_name):
     try:
         with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
             zipf.write(file, arcname=file)
-        print(f'{file} has been zipped to {zip_file_name}')
+        # print(f'{file} has been zipped to {zip_file_name}')
     except Exception as e:
         print(f'Error zipping file: {e}')
 
@@ -17,15 +18,15 @@ def unzip_file(zip_file, destination_folder):
     try:
         with zipfile.ZipFile(zip_file, 'r') as zipf:
             zipf.extractall(destination_folder)
-        print(f'{zip_file} has been successfully unzipped to {destination_folder}')
+        # print(f'{zip_file} has been successfully unzipped to {destination_folder}')
     except Exception as e:
         print(f'Error unzipping file: {e}')
       
 
 def train(learning_rate, num_epochs):
     # not using any model information for this step
-    for i in range(0,5):
-        print(i)
+    for i in range(num_epochs):
+        print(f"\tEpoch{i}")
         # adding 1 second time delay
         time.sleep(1)
 
@@ -36,54 +37,63 @@ def receive_message(sock: socket.socket) -> str:
     msg = sock.recv(1024)
     return msg.decode()
 
-def send_scp_file(local_path: str, remote_path: str, ip: str, port: int, user: str, pwd: str, file_name: str, sock: socket.socket):
-    # TODO: zip here
-    zip_file(local_path, "fake_model.zip")
-    # TODO: get file size here
-    file_size = os.path.getsize(local_path)
+def send_scp_file(local_path: str, remote_path: str, ip: str, user: str, pwd: str, file_name: str, sock: socket.socket, zip_name: str):
+    zip_file(local_path + file_name, local_path + zip_name)
+    file_size = os.path.getsize(local_path + file_name)
     
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(hostname=ip, username='vliew', password='U8133051', banner_timeout=200)
+    ssh.connect(hostname=ip, username=user, password=pwd, banner_timeout=200)
 
     received = False
     while not received:
         try:
             with SCPClient(ssh.get_transport()) as scp:
-                scp.put(local_path, remote_path)
-                print(f"Sent file: {local_path}")
+                scp.put(local_path + zip_name, remote_path + zip_name)
+                # print(f"Sent file: {local_path + zip_name}")
         except Exception as e:
             print(f"Error sending file: {e}")
+            sys.exit(1)
             continue
         
-        msg = remote_path + ";" + file_name + ";" + str(file_size)
+        msg = ";".join([remote_path + zip_name, local_path + file_name, str(file_size)])
         send_message(sock, msg)
 
         msg = receive_message(sock)
+        # print(msg)
         if msg == 'Received':
             received = True
 
-    # TODO: delete zipped file here
+    
+    ssh.close()
 
+# returns path of received file
 def receive_scp_file(destination_path: str, sock: socket.socket):
     received = False
+    file_name = ""
+
     while not received:
         msg = receive_message(sock)
+        # print(msg)
         split_msg = msg.split(';')
+        zip_locale = split_msg[0]
+        file_name = split_msg[1]
+        sent_file_size = int(split_msg[2])
 
-        if os.path.exists(split_msg[0]):
-            # TODO: unzip
-            unzip_file(split_msg[0], destination_path)
+        if os.path.exists(zip_locale):
+            unzip_file(zip_locale, destination_path)
 
-            file_size = os.path.getsize(destination_path)
-            # if (file_size == split_msg[2]):
-            #     send_message(sock, "Received")
-            #     received = True
-            # else:
-            #     send_message(sock, "Resend")
-            send_message(sock, "Received")
+            local_file_size = os.path.getsize(destination_path + file_name)
+            if local_file_size == sent_file_size:
+                received = True
+                send_message(sock, "Received")
+            else:
+                send_message(sock, "Resend")
 
-            # TODO: delete zip file
+            # delete zip file
+            os.remove(zip_locale)
+        else:
+            send_message(sock, "Resend")
 
-            received = True
+    return destination_path + file_name
 
