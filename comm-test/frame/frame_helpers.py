@@ -1,3 +1,7 @@
+'''
+Credit goes to https://github.com/etiennedub/pyk4a/blob/master/example/helpers.py
+
+'''
 from typing import Optional, Tuple
 
 import cv2
