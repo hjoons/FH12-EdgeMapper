@@ -4,9 +4,18 @@ from scp import SCPClient
 import zipfile
 import os
 import time
-import sys
 
 def zip_file(file, zip_file_name):
+    """
+    Zip a file
+
+    Args:
+        file (str): path of the file to be zipped - *MUST be relative path
+        zip_file_name (str): path of the zipped file
+
+    Returns:
+        None
+    """
     try:
         with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
             zipf.write(file, arcname=file)
@@ -15,6 +24,16 @@ def zip_file(file, zip_file_name):
         print(f'Error zipping file: {e}')
 
 def unzip_file(zip_file, destination_folder):
+    """
+    Unzip a file
+
+    Args:
+        zip_file (str): path of the zip file to unzip
+        destination_folder (str): path to place the unzipped file
+
+    Returns:
+        None
+    """
     try:
         with zipfile.ZipFile(zip_file, 'r') as zipf:
             zipf.extractall(destination_folder)
@@ -38,7 +57,7 @@ def receive_message(sock: socket.socket) -> str:
     return msg.decode()
 
 def send_scp_file(local_path: str, remote_path: str, ip: str, user: str, pwd: str, file_name: str, sock: socket.socket, zip_name: str):
-    zip_file(local_path + file_name, local_path + zip_name)
+    # zip_file(local_path + file_name, local_path + zip_name)
     file_size = os.path.getsize(local_path + file_name)
     
     ssh = paramiko.SSHClient()
@@ -53,7 +72,6 @@ def send_scp_file(local_path: str, remote_path: str, ip: str, user: str, pwd: st
                 # print(f"Sent file: {local_path + zip_name}")
         except Exception as e:
             print(f"Error sending file: {e}")
-            sys.exit(1)
             continue
         
         msg = ";".join([remote_path + zip_name, local_path + file_name, str(file_size)])
@@ -67,8 +85,20 @@ def send_scp_file(local_path: str, remote_path: str, ip: str, user: str, pwd: st
     
     ssh.close()
 
-# returns path of received file
 def receive_scp_file(destination_path: str, sock: socket.socket):
+    """
+    Receive file through SCP
+
+    Waits for incoming message with the name of the zip file, name of the unzipped file,
+    and the size of the file. Checks file size until correct file size received.
+
+    Args:
+        destination_path (str): path to place the unzipped file
+        sock (socket): socket over which messages are sent and received
+
+    Returns:
+        str: path of the received file
+    """
     received = False
     file_name = ""
 

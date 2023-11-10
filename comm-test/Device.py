@@ -22,6 +22,8 @@ def main():
     server_host = dev_ip[args.device_number]
     server_port = dev_port[args.device_number]
 
+    p = os.getcwd().replace('\\', '/') + '/'
+
     while True:
         # create server
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -57,6 +59,8 @@ def main():
         print('Received setup info')
         utils.send_message(sock, "ACK")
 
+        utils.send_message(sock, p + dev_path)
+
         # After setup info receive global model
         global_file = utils.receive_scp_file(dev_path, sock)
         print(f'Received global model: {global_file}')
@@ -81,12 +85,15 @@ def main():
             msg = utils.receive_message(sock)
         
         # send model
+        federated_zip = f"federated_{device_num}.zip"
         print('Sending local model')
-        utils.send_scp_file(dev_path, remote_path, client_address[0], "vliew", "U8133051", federated_file, sock, f"federated_{device_num}.zip")
+        utils.zip_file(dev_path + federated_file, dev_path + federated_zip)
+        utils.send_scp_file(dev_path, remote_path, client_address[0], "vliew", "U8133051", federated_file, sock, federated_zip)
         print('Local model sent')
 
-        # delete local model??
+        # delete local model and zip
         os.remove(dev_path + federated_file)
+        os.remove(dev_path + federated_zip)
 
         # loop finished, close
         sock.close()
