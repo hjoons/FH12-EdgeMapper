@@ -1,1 +1,1 @@
-## Make sure you have the nyuv2 .mat file in the same directory to train.
+## Make sure you have the https://www.kaggle.com/datasets/soumikrakshit/nyu-depth-v2/data .zip in same directory.

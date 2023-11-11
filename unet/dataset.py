@@ -1,5 +1,4 @@
 import torch
-import h5py
 import numpy as np
 import random
 
@@ -11,6 +10,7 @@ from PIL import Image
 from io import BytesIO
 from itertools import permutations
 
+# Works with https://www.kaggle.com/datasets/soumikrakshit/nyu-depth-v2/data
 
 _check_pil = lambda x: isinstance(x, Image.Image)
 
