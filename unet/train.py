@@ -11,7 +11,7 @@ from losses import ssim, depth_loss
 from model import UNet
 from torch.utils.tensorboard import SummaryWriter
 
-def train(lr=1e-3, epochs=75, samples=2000, batch_size=4):
+def train(lr=1e-3, epochs=75, samples=2500, batch_size=4):
     writer = SummaryWriter('logs')
     
     device = (
@@ -24,14 +24,15 @@ def train(lr=1e-3, epochs=75, samples=2000, batch_size=4):
     print(f"Now using device: {device}")
     
     print("Loading data ...")
-    train_loader, test_loader = dataset.createTrainLoader("./data.zip", samples=samples, batch_size=batch_size)
+    train_loader, val_loader = dataset.createTrainLoader("./data.zip", samples=samples, batch_size=batch_size)
+    
+    test_loader = dataset.createTestLoader("./data.zip", batch_size=batch_size)
+    print("Test loader len: ", len(test_loader))
     
     print("DataLoaders now ready ...")
     num_trainloader = len(train_loader)
     num_testloader = len(test_loader)
-    
-    print(train_loader)
-    
+        
     model = UNet().to(torch.device(device))
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     l1_criterion = torch.nn.L1Loss()
@@ -152,7 +153,7 @@ def train(lr=1e-3, epochs=75, samples=2000, batch_size=4):
         writer.add_scalar('Loss/train', (running_loss / num_trainloader), global_step=epoch)
         writer.add_scalar('Loss/validation', (running_test_loss / num_testloader), global_step=epoch)
         
-        if (epoch + 1) % 25 == 0:
+        if (epoch + 1) % 50 == 0:
             checkpoint = {
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),

@@ -247,7 +247,7 @@ def createTrainLoader(path, samples=2000, batch_size=1, workers=1):
     
     return DataLoader(train_set, batch_size, shuffle=True), DataLoader(val_set, batch_size, shuffle=False)
 
-def createTestLoader(path, batch_size=1, workers=1):
+def createTestLoader(path, samples=500, batch_size=1, workers=1):
     """
     Returns the testing DataLoader. The batch size and
     worksers can be specified.
@@ -260,9 +260,19 @@ def createTestLoader(path, batch_size=1, workers=1):
         torch.utils.data.DataLoader: DataLoader that can get batches of paired input and label tensors.
     """
     
+    random.seed(42)
+
     data, nyu2_train = loadZipToMem(path)
     transformed_testing = DepthDataset(
         data, nyu2_train, transform=getNoTransform()
     )
     
-    return DataLoader(transformed_testing, batch_size, shuffle=False)
+    random_indices = set()
+    while len(random_indices) < samples:
+        random_indices.add(random.randint(0, len(transformed_testing) - 1))
+
+    random_indices = list(random_indices) 
+    
+    testing = torch.utils.data.Subset(transformed_testing, random_indices) 
+    
+    return DataLoader(testing, batch_size=batch_size, shuffle=False)
