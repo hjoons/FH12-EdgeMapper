@@ -4,169 +4,14 @@ import time
 import os
 import pandas as pd
 import dataset
-import math
-import numpy as np
+import matplotlib.pyplot as plt
+
+from utils import DepthNorm
+from losses import ssim, depth_loss
 from model import UNet
 from torch.utils.tensorboard import SummaryWriter
 
-def custom_loss(pred, target):
-    di = target - pred
-    n = 640*480
-    di2 = torch.pow(di, 2)
-    first_term = torch.sum(di2, (1, 2, 3)) / n
-    second_term = .5 * torch.pow(torch.sum(di, (1, 2, 3)), 2) / (n**2)
-    loss = first_term - second_term
-    return loss.mean()
-
-def gaussian(window_size, sigma):
-    gauss = torch.Tensor(
-        [
-            math.exp(-((x - window_size // 2) ** 2) / float(2 * sigma ** 2))
-            for x in range(window_size)
-        ]
-    )
-    return gauss / gauss.sum()
-
-def create_window(window_size, channel=1):
-
-    _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
-    _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
-
-    window = torch.Tensor(
-        _2D_window.expand(channel, 1, window_size, window_size).contiguous()
-    )
-
-    return window
-
-def ssim(
-    img1, img2, val_range, window_size=11, window=None, size_average=True, full=False
-):
-
-    L = val_range  # L is the dynamic range of the pixel values (255 for 8-bit grayscale images),
-
-    pad = window_size // 2
-
-    try:
-        _, channels, height, width = img1.size()
-    except:
-        channels, height, width = img1.size()
-
-    # if window is not provided, init one
-    if window is None:
-        real_size = min(window_size, height, width)  # window should be atleast 11x11
-        window = create_window(real_size, channel=channels).to(img1.device)
-
-    # calculating the mu parameter (locally) for both images using a gaussian filter
-    # calculates the luminosity params
-    mu1 = F.conv2d(img1, window, padding=pad, groups=channels)
-    mu2 = F.conv2d(img2, window, padding=pad, groups=channels)
-
-    mu1_sq = mu1 ** 2
-    mu2_sq = mu2 ** 2
-    mu12 = mu1 * mu2
-
-    # now we calculate the sigma square parameter
-    # Sigma deals with the contrast component
-    sigma1_sq = F.conv2d(img1 * img1, window, padding=pad, groups=channels) - mu1_sq
-    sigma2_sq = F.conv2d(img2 * img2, window, padding=pad, groups=channels) - mu2_sq
-    sigma12 = F.conv2d(img1 * img2, window, padding=pad, groups=channels) - mu12
-
-    # Some constants for stability
-    C1 = (0.01) ** 2  # NOTE: Removed L from here (ref PT implementation)
-    C2 = (0.03) ** 2
-
-    contrast_metric = (2.0 * sigma12 + C2) / (sigma1_sq + sigma2_sq + C2)
-    contrast_metric = torch.mean(contrast_metric)
-
-    numerator1 = 2 * mu12 + C1
-    numerator2 = 2 * sigma12 + C2
-    denominator1 = mu1_sq + mu2_sq + C1
-    denominator2 = sigma1_sq + sigma2_sq + C2
-
-    ssim_score = (numerator1 * numerator2) / (denominator1 * denominator2)
-
-    if size_average:
-        ret = ssim_score.mean()
-    else:
-        ret = ssim_score.mean(1).mean(1).mean(1)
-
-    if full:
-        return ret, contrast_metric
-
-    return ret
-
-def image_gradients(img, device):
-
-    """works like tf one"""
-    if len(img.shape) != 4:
-        raise ValueError("Shape mismatch. Needs to be 4 dim tensor")
-
-    img_shape = img.shape
-    batch_size, channels, height, width = img.shape
-
-    dy = img[:, :, 1:, :] - img[:, :, :-1, :]
-    dx = img[:, :, :, 1:] - img[:, :, :, :-1]
-
-    shape = np.stack([batch_size, channels, 1, width])
-    dy = torch.cat(
-        [
-            dy,
-            torch.zeros(
-                [batch_size, channels, 1, width], device=device, dtype=img.dtype
-            ),
-        ],
-        dim=2,
-    )
-    dy = dy.view(img_shape)
-
-    shape = np.stack([batch_size, channels, height, 1])
-    dx = torch.cat(
-        [
-            dx,
-            torch.zeros(
-                [batch_size, channels, height, 1], device=device, dtype=img.dtype
-            ),
-        ],
-        dim=3,
-    )
-    dx = dx.view(img_shape)
-
-    return dy, dx
-
-def depth_loss(y_true, y_pred, theta=0.1, device="cuda", maxDepth=10.0):
-
-    # Edges
-    dy_true, dx_true = image_gradients(y_true, device)
-    dy_pred, dx_pred = image_gradients(y_pred, device)
-    l_edges = torch.mean(
-        torch.abs(dy_pred - dy_true) + torch.abs(dx_pred - dx_true), dim=1
-    )
-    
-    # Testing if this is correct
-    return l_edges.mean()
-
-def silog(pred, target, delta=.5):
-    """
-    Scale Invariant Log Loss
-    https://papers.nips.cc/paper/2014/file/7bccfde7714a1ebadf06c5f4cea752c1-Paper.pdf
-
-    Args:
-        pred (torch.Tensor): Predictions.
-        target (torch.Tensor): Ground truth.
-        delta (float, optional): Delta that goes along with literature. Defaults to .5.
-
-    Returns:
-        float: SILog Loss. 
-    """
-    mask = (pred > 0) & (target > 0)
-    n = len(torch.nonzero(mask))
-    
-    d = torch.log(pred[mask]) - torch.log(target[mask])
-    loss = (1 / n) * (torch.sum(d ** 2)) - (delta / (n ** 2)) * (torch.sum(d) ** 2)
-    return loss
-    
-
-def train(lr=1e-3, epochs=200):
+def train(lr=1e-3, epochs=75, samples=2000, batch_size=4):
     writer = SummaryWriter('logs')
     
     device = (
@@ -178,59 +23,136 @@ def train(lr=1e-3, epochs=200):
     )
     print(f"Now using device: {device}")
     
-    X_train, y_train, X_test, y_test = dataset.get_tensors('./nyu_depth_v2_labeled.mat')
-    training = dataset.create_loader(X_train, y_train, bs=4)
-    testing = dataset.create_loader(X_test, y_test, bs=4)
+    print("Loading data ...")
+    train_loader, test_loader = dataset.createTrainLoader("./data.zip", samples=samples, batch_size=batch_size)
+    
+    print("DataLoaders now ready ...")
+    num_trainloader = len(train_loader)
+    num_testloader = len(test_loader)
+    
+    print(train_loader)
     
     model = UNet().to(torch.device(device))
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    criterion = depth_loss
+    l1_criterion = torch.nn.L1Loss()
     
+    # batch_iter = 0
     train_loss = []
     test_loss = []
     for epoch in range(epochs):
         time_start = time.perf_counter()
         model = model.train()
         running_loss = 0
-        for batch_idx, (image, truth) in enumerate(training):
-            image = image.to(torch.device(device))
-            truth = truth.to(torch.device(device))
-
+        for batch_idx, batch in enumerate(train_loader):
             optimizer.zero_grad()
 
-            outputs = model(image)
+            image = torch.Tensor(batch["image"]).to(device)
+            depth = torch.Tensor(batch["depth"]).to(device)
             
-            loss = criterion(outputs, truth)
-            cpu_loss = loss.cpu().detach().numpy()
+            normalized_depth = DepthNorm(depth)
             
+            pred = model(image)
+            
+            l1_loss = l1_criterion(pred, normalized_depth)
+            
+            ssim_loss = torch.clamp(
+                (1 - ssim(pred, normalized_depth, 1000.0 / 10.0)) * 0.5,
+                min=0,
+                max=1,
+            )
+            
+            gradient_loss = depth_loss(normalized_depth, pred, device=device)
+            
+            net_loss = (
+                (1.0 * ssim_loss)
+                + (1.0 * torch.mean(gradient_loss))
+                + (0.1 * torch.mean(l1_loss))
+            )
+            
+            cpu_loss = net_loss.cpu().detach().numpy()
+            # writer.add_scalar("Loss/batch_train",cpu_loss,batch_iter)
             running_loss += cpu_loss
 
-            loss.sum().backward()
+            net_loss.backward()
 
             optimizer.step()
-        time_end = time.perf_counter()
-        train_loss.append(running_loss / len(training))
-        print(f'epoch: {epoch + 1} train loss: {running_loss / len(training)} time: {time_end - time_start}')
+            # batch_iter += 1
+
+        train_loss.append(running_loss / num_trainloader)
+        print(f'epoch: {epoch + 1} train loss: {running_loss / num_trainloader}')
 
         model.eval()
         with torch.no_grad():
             running_test_loss = 0
-            for batch_idx, (image, truth) in enumerate(testing):
-                image = image.to(torch.device(device))
-                truth = truth.to(torch.device(device))
+            for batch_idx, batch in enumerate(test_loader):
+                image = torch.Tensor(batch["image"]).to(device)
+                depth = torch.Tensor(batch["depth"]).to(device=device)
+
+                normalized_depth = DepthNorm(depth)
+
+                pred = model(image)
+
+                # calculating the losses
+                l1_loss = l1_criterion(pred, normalized_depth)
+
+                ssim_loss = torch.clamp(
+                    (1 - ssim(pred, normalized_depth, 1000.0 / 10.0)) * 0.5,
+                    min=0,
+                    max=1,
+                )
+
+                gradient_loss = depth_loss(normalized_depth, pred, device=device)
+
+                net_loss = (
+                    (1.0 * ssim_loss)
+                    + (1.0 * torch.mean(gradient_loss))
+                    + (0.1 * torch.mean(l1_loss))
+                )
                 
-                outputs = model(image)
-                
-                loss = criterion(outputs, truth)
-                cpu_loss = loss.cpu().detach().numpy()
+                cpu_loss = net_loss.cpu().detach().numpy()
                 running_test_loss += cpu_loss
-            test_loss.append(running_test_loss / len(testing))
-            print(f'testing loss: {running_test_loss / len(testing)}')
+            test_loss.append(running_test_loss / num_testloader)
+            time_end = time.perf_counter()
+            print(f'testing loss: {running_test_loss / num_testloader} time: {time_end - time_start}')
+            
+
+            # batch = next(iter(test_loader))
+            # image_x = torch.Tensor(batch["image"]).to(device)
+            # depth_y = torch.Tensor(batch["depth"]).to(device=device)
+            # for i in range(3):
+            #     out = model(image_x[i].unsqueeze(0))
+            #     normalized_depth = DepthNorm(depth_y[i])
+
+            #     pred = model(image_x[i].unsqueeze(0))
+
+            #     # calculating the losses
+            #     l1_loss = l1_criterion(pred, normalized_depth)
+
+            #     ssim_loss = torch.clamp(
+            #         (1 - ssim(pred, normalized_depth, 1000.0 / 10.0)) * 0.5,
+            #         min=0,
+            #         max=1,
+            #     )
+
+            #     gradient_loss = depth_loss(normalized_depth.unsqueeze(0), pred, device=device)
+
+            #     net_loss = (
+            #         (1.0 * ssim_loss)
+            #         + (1.0 * torch.mean(gradient_loss))
+            #         + (0.1 * torch.mean(l1_loss))
+            #     )
+            #     cpu_loss = net_loss.cpu().detach().numpy()
+            #     fig,ax = plt.subplots(1,3,figsize=(16,8))
+            #     ax[0].imshow(image_x[i].permute(1,2,0).cpu())
+            #     ax[1].imshow(depth_y[i][0].cpu())
+            #     ax[2].imshow(out.cpu()[0][0])
+            #     ax[2].set_title(f"loss:{net_loss}")
+            #     fig.savefig(f'test_img{i}_epoch_{epoch}.png')
         
-        writer.add_scalar('Loss/train', (running_loss / len(training)), global_step=epoch)
-        writer.add_scalar('Loss/validation', (running_test_loss / len(testing)), global_step=epoch)
+        writer.add_scalar('Loss/train', (running_loss / num_trainloader), global_step=epoch)
+        writer.add_scalar('Loss/validation', (running_test_loss / num_testloader), global_step=epoch)
         
-        if (epoch + 1) % 50 == 0:
+        if (epoch + 1) % 25 == 0:
             checkpoint = {
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),

@@ -4,7 +4,7 @@ import random
 
 from zipfile import ZipFile
 from sklearn.utils import shuffle
-from torchvision import transforms, utils
+from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 from io import BytesIO
@@ -42,7 +42,7 @@ class DepthDataset(Dataset):
         Returns:
             integer: Length of CustomDataset. 
         """
-        return len(self.data)
+        return len(self.nyu_dataset)
 
     def __getitem__(self, idx):
         """
@@ -150,6 +150,7 @@ def loadZipToMem(zip_file,train_test="train"):
     nyu2_train = shuffle(nyu2_train, random_state=0)
 
     print("Loaded ({0}).".format(len(nyu2_train)))
+
     return data, nyu2_train
 
 class RandomHorizontalFlip(object):
