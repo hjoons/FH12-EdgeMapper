@@ -157,7 +157,7 @@ def create_data_loader(x, y):
     return loader
 
 def main(path: str):
-    create_frames("C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/output.mkv")
+    create_frames(f"{path}")
     x, y = create_data_set("output_1.h5")
     loader = create_data_loader(x, y)
     print("done")
