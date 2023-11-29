@@ -11,7 +11,7 @@ from losses import ssim, depth_loss
 from model import UNet
 from torch.utils.tensorboard import SummaryWriter
 
-def train(lr=1e-3, epochs=75, samples=2500, batch_size=4):
+def train(lr=1e-3, epochs=75, samples=2500, batch_size=4, h5_path=None):
     writer = SummaryWriter('logs')
     
     device = (
@@ -24,9 +24,13 @@ def train(lr=1e-3, epochs=75, samples=2500, batch_size=4):
     print(f"Now using device: {device}")
     
     print("Loading data ...")
-    train_loader, val_loader = dataset.createTrainLoader("./data.zip", samples=samples, batch_size=batch_size)
     
-    test_loader = dataset.createTestLoader("./data.zip", batch_size=batch_size)
+    if not h5_path:
+        print("No data path")
+     
+    train_loader, val_loader = dataset.createH5TrainLoader(path=h5_path, samples=samples, batch_size=batch_size)
+    
+    test_loader = dataset.createH5TestLoader(path=h5_path, batch_size=batch_size)
     print("Test loader len: ", len(test_loader))
     
     print("DataLoaders now ready ...")
