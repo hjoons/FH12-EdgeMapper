@@ -10,7 +10,7 @@ asic_pows = []
 board_pows = []
 ram_usages = []
 
-sudo_password = '12346578'
+sudo_password = '12345678'
 
 # CPU temp output: CPU@xx.xxxC
 # GPU temp output: GPU@xx.xxxC
@@ -44,12 +44,13 @@ ax1.grid(True)
 
 # Create lines for subplot 2
 line1_sub2, = ax2.plot([], [], color='green', label='CPU + GPU Power')  # Green for Line 1
-line2_sub2, = ax2.plot([], [], color='yellow', label='Board Power')  # Yellow for Line 2
+line2_sub2, = ax2.plot([], [], color='purple', label='Board Power')  # Purple for Line 2
 ax2.legend()
 ax2.set_ylabel('Power Consumption (W)')
 ax2.grid(True)
 
 line_RAM, = ax3.plot([], [], color='orange') # Orange line for RAM line
+ax3.legend()
 ax3.set_ylabel('RAM Usage (GB)')
 ax3.set_xlabel('Time (s)')
 ax3.grid(True)
