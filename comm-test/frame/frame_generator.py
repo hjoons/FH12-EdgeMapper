@@ -3,14 +3,18 @@ from matplotlib import image
 import os
 import cv2
 # from frame_helpers import colorize, convert_to_bgra_if_required
+
 import pyk4a
 from pyk4a import PyK4A, Config, FPS, DepthMode, ColorResolution
+
 import h5py
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 import random
+
 # import torch
 # import argparse
+
 # from unet.model import UNet
 
 import torch
@@ -275,6 +279,9 @@ def main(path: str):
             truth = truth.to(torch.device(device))
             cpu_time = time.perf_counter()
             
+            outputs = model(image)
+            print(f"Model ran for batch {batch_idx}")
+
 
             outputs = model(image)
             outputs = 1000.0 / outputs
