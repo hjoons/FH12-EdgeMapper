@@ -1,12 +1,12 @@
-import paramiko
+# import paramiko
 import socket
-from scp import SCPClient
+# from scp import SCPClient
 import zipfile
 import os
 import time
 import h5dataset
 import torch
-from frame_generator import UNet
+from model import UNet
 from losses import ssim, depth_loss
 
 def DepthNorm(depth, max_depth=1000.0):
@@ -209,4 +209,39 @@ def receive_scp_file(destination_path: str, sock: socket.socket):
             send_message(sock, "Resend")
 
     return destination_path + file_name
+
+def federated_averaging(models_dir: str):
+    """
+    Perform federated averaging on the models in the models_dir directory
+
+    Args:
+        models_dir (str): path to the directory containing the models to be averaged
+
+    Returns:
+        None
+    """
+    # get all the models in the models_dir directory
+    models = os.listdir(models_dir)
+    num_models = len(models)
+    print(f"Number of models: {num_models}")
+
+    # load all the models
+    loaded_models = []
+    for model in models:
+        unet = UNet()
+        unet.load_state_dict(torch.load(models_dir + model)['model_state_dict'])
+        unet.eval()
+        loaded_models.append(unet)
+    
+    federated_model = UNet()
+    federated_model.eval()
+
+    # perform federated averaging
+    for param_fm, *params_m in zip(federated_model.parameters(), *[model.parameters() for model in loaded_models]):
+        param_fm.data.copy_(torch.stack([param_m.data for param_m in params_m]).mean(0))
+
+    return federated_model
+
+
+
 
