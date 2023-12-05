@@ -49,7 +49,7 @@ def unzip_file(zip_file, destination_folder):
         print(f'Error unzipping file: {e}')
       
 
-def train(learning_rate, num_epochs, file_path):
+def train(learning_rate, num_epochs, file_path, federated_path):
     device = (
             "cuda"
             if torch.cuda.is_available()
@@ -128,9 +128,9 @@ def train(learning_rate, num_epochs, file_path):
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict()
     }
-    model_path = os.path.join(os.getcwd(), f'federated_0.pt')
+    model_path = os.path.join(os.getcwd(), federated_path)
     torch.save(checkpoint, model_path)
-    return 'federated_0.pt'
+    return federated_path
 
 def send_message(sock: socket.socket, msg: str):
     sock.sendall(msg.encode())

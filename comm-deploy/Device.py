@@ -49,6 +49,7 @@ def main():
         utils.send_message(sock, "ACK")
 
         # After setup info receive global model
+        print('Waiting for global model...')
         global_file = utils.receive_scp_file(dev_path, sock)
         print(f'Received global model: {global_file}')
         print(f"Model loaded!")
@@ -58,7 +59,8 @@ def main():
 
         # train func
         print('Starting training')
-        federated_file = utils.train(learning_rate, num_epochs, global_file)
+        federated_file = f'federated_{device_num}.pt'
+        federated_file = utils.train(learning_rate, num_epochs, global_file, federated_file)
         print('Training complete')
         
         print(f"Training saved as {dev_path + federated_file}")

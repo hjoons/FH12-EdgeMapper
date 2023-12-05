@@ -49,7 +49,7 @@ ax2.legend()
 ax2.set_ylabel('Power Consumption (W)')
 ax2.grid(True)
 
-line_RAM, = ax3.plot([], [], color='orange') # Orange line for RAM line
+line_RAM, = ax3.plot([], [], color='orange', label='RAM Usage') # Orange line for RAM line
 ax3.legend()
 ax3.set_ylabel('RAM Usage (GB)')
 ax3.set_xlabel('Time (s)')

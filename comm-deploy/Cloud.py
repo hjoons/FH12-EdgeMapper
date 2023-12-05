@@ -4,13 +4,15 @@ import utils
 import threading
 import os
 import argparse
+import torch
+import shutil
 
 # placeholders, get this from params
 learning_rate = 0.01
 num_epochs = 50
 num_loops = 5
 
-dev_ip = ['192.168.1.43',
+dev_ip = ['192.168.1.147',
           '127.0.0.1',
           '127.0.0.1',
           '127.0.0.1']
@@ -21,26 +23,26 @@ dev_port = [8888,
             8888]
 
 dev_users = ['orin',
-            'orin',
+            'vliew',
             'orin',
             'orin',]
 
 dev_pwds = ['12345678',
-            '12345678',
+            'U8133051',
             '12345678',
             '12345678',]
 
-device_path = '~/Documents/FH12_23-24/device_training/'
+device_path = ['~/Documents/FH12_23-24/device_training/',
+               'C:/Users/vliew/Documents/FH12_23-24/device_training',
+               '~/Documents/FH12_23-24/device_training/',
+               '~/Documents/FH12_23-24/device_training/',]
 
 user = 'vliew'
 pwd = 'U8133051'
 
-num_devices = 1
-
 global_path = ''
 
-# p ="C:/Users/vliew/Documents/UTAustin/Fall2023/ECE 364D - Senior Design/FH12-EdgeMapper/comm-test"
-# p = 'C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/FH12-EdgeMapper/comm-test/'
+global_file_path = 'epoch_250.pt'
 
 
 class DeviceHandler(threading.Thread):
@@ -88,7 +90,7 @@ class DeviceHandler(threading.Thread):
         # setup message
         # learning rate, num_epochs, device path, cloud path, device_num
         print(f"Dev{self.device_num}: Sending setup message")
-        msg = ";".join([str(learning_rate), str(num_epochs), self.cloud_path, device_path, str(self.device_num), user, pwd])
+        msg = ";".join([str(learning_rate), str(num_epochs), self.cloud_path, device_path[self.device_num], str(self.device_num), user, pwd])
         utils.send_message(sock, msg)
         while True:
             msg = utils.receive_message(sock)
@@ -98,7 +100,7 @@ class DeviceHandler(threading.Thread):
 
         # send global model
         print(f"Dev{self.device_num}: Sending global model")
-        utils.send_scp_file(global_path, device_path, self.device_ip, self.dev_user, self.dev_pwd, "global_model.pth", sock, "global_model.zip")
+        utils.send_scp_file(global_path, device_path[self.device_num], self.device_ip, self.dev_user, self.dev_pwd, global_file_path, sock, "global_model.zip")
         print(f"Dev{self.device_num}: Global model sent")
 
         while True:
@@ -126,29 +128,35 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Argument Parser for learning rate, num epochs, and num loops')
 
     parser.add_argument('--learning_rate', '--lr', type=float, default=0.01, help='Learning rate for the model')
-    parser.add_argument('--num_epochs', '--e', type=int, default=50, help='Number of epochs for the model')
-    parser.add_argument('--comm_rounds', '--r', type=int, default=5, help='Number of communication rounds for the model')
+    parser.add_argument('--num_epochs', '--e', type=int, default=1, help='Number of epochs for the model')
+    parser.add_argument('--comm_rounds', '--r', type=int, default=2, help='Number of communication rounds for the model')
+    parser.add_argument('--num_devices', '--n', type=int, default=1, help='Number of devices')
 
     args = parser.parse_args()
 
     learning_rate = args.learning_rate
     num_epochs = args.num_epochs
     num_loops = args.comm_rounds
+    num_devices = args.num_devices
 
     p = os.getcwd().replace('\\', '/') + '/'
 
     if not os.path.exists('federated_models/'):
         os.makedirs('federated_models/')
+
+    # global_file_path = 'epoch_250.pt'
     
     for i in range(num_loops):
         # check for global model
-        if not os.path.exists('global_model.pth'):
-            # TODO: replace with actual model
-            with open('global_model.pth', "w") as file:
-                file.write("Fake global model to send to edge devices")
+        # if not os.path.exists('global_model.pth'):
+        #     # TODO: replace with actual model
+        #     with open('global_model.pth', "w") as file:
+        #         file.write("Fake global model to send to edge devices")
 
         # zip global model
-        utils.zip_file('global_model.pth', 'global_model.zip')
+        print('Zipping global model...')
+        utils.zip_file(global_file_path, 'global_model.zip')
+        print('Finished zipping\n')
 
         # create device handlers
         # parameters: (device_num: int, device_ip: str, device_port: int, device_path: str, cloud_path: str)
@@ -166,12 +174,16 @@ if __name__ == '__main__':
             dev.join()
 
         # aggregate models
+        print('\nAggregating models...')
         # TODO: aggregate models
+        # currently takes model from single device and saves as aggregated global model
+        shutil.copy2('federated_models/federated_1.pt', 'global_model.pt')
+        global_file_path = 'global_model.pt'
         print('Models aggregated')
 
         # delete federated models after aggregation and global zip
         for k in range(num_devices):
-            os.remove(f'federated_models/federated_{k}.pth')
+            os.remove(f'federated_models/federated_{k}.pt')
         os.remove('global_model.zip')
 
 

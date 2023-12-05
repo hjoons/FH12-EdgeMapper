@@ -51,15 +51,17 @@ def main():
         learning_rate = float(split_msg[0])
         num_epochs = int(split_msg[1])
         remote_path = split_msg[2]  # path to send the federated model
-        device_num = split_msg[3]
+        dev_path = os.path.expanduser(split_msg[3])
+        device_num = split_msg[4]
+        cloud_user = split_msg[5]
+        cloud_pwd = split_msg[6]
         
-        dev_path = f"dev{device_num}/"
         if not os.path.exists(dev_path):
             os.makedirs(dev_path)
+        os.chdir(dev_path)
+        dev_path = ''
         print('Received setup info')
         utils.send_message(sock, "ACK")
-
-        utils.send_message(sock, p + dev_path)
 
         # After setup info receive global model
         global_file = utils.receive_scp_file(dev_path, sock)
@@ -74,7 +76,7 @@ def main():
         print('Training complete')
 
         # dummy trained file
-        federated_file = f"federated_{device_num}.pth"
+        federated_file = f"federated_{device_num}.pt"
         with open(dev_path + federated_file, "w") as file:
             file.write("Dummy file for federated training")
         print(f"Training saved as {dev_path + federated_file}")
@@ -88,12 +90,13 @@ def main():
         federated_zip = f"federated_{device_num}.zip"
         print('Sending local model')
         utils.zip_file(dev_path + federated_file, dev_path + federated_zip)
-        utils.send_scp_file(dev_path, remote_path, client_address[0], "vliew", "U8133051", federated_file, sock, federated_zip)
+        utils.send_scp_file(dev_path, remote_path, client_address[0], cloud_user, cloud_pwd, federated_file, sock, federated_zip)
         print('Local model sent')
 
         # delete local model and zip
         os.remove(dev_path + federated_file)
         os.remove(dev_path + federated_zip)
+        os.remove(global_file)
 
         # loop finished, close
         sock.close()
