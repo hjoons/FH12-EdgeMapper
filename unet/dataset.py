@@ -201,7 +201,7 @@ def loadZipToMem(zip_file,train_test="train"):
     nyu2_train = list(
         (
             row.split(",")
-            for row in (data[f"nyu_data/data/nyu2_{train_test}.csv"]).decode("utf-8").split("\n")
+            for row in (data[f"data/nyu2_{train_test}.csv"]).decode("utf-8").split("\n")
             if len(row) > 0
         )
     )
