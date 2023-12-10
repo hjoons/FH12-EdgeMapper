@@ -2,12 +2,13 @@ import utils
 import socket
 import os
 import torch
+import argparse
 
 server_port = 8888
 
-def main():
+def main(ip_addr: str):
 
-    server_host = '127.0.0.1'
+    server_host = ip_addr
 
     while True:
         # create server
@@ -87,4 +88,9 @@ def main():
         server_socket.close()
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="Specify host")
+    parser.add_argument('--ip', type=str, default='127.0.0.1', help='Host IP')
+    args = parser.parse_args()
+
+    ip = args.ip
+    main(ip)
