@@ -1,12 +1,15 @@
-# import paramiko
+import paramiko
 import socket
-# from scp import SCPClient
+import h5py
+from scp import SCPClient
 import zipfile
 import os
 import time
 import h5dataset
 import torch
-from model import UNet
+import random
+from frame_generator import UNet
+from mobilenetv3 import MobileNetSkipConcat
 from losses import ssim, depth_loss
 
 def DepthNorm(depth, max_depth=1000.0):
@@ -58,14 +61,14 @@ def train(learning_rate, num_epochs, file_path, federated_path):
             else "cpu"
         )
     print(f"Now using device: {device}")
-    model = UNet().to(torch.device(device))
-    model.load_state_dict(torch.load(f'{file_path}')['model_state_dict'])
-    model.eval()
+    model = MobileNetSkipConcat().to(torch.device(device))
+    model.load_state_dict(torch.load(f'{file_path}', map_location=torch.device(device))['model_state_dict'])
+    # model.eval()
     # not using any model information for this step
         # print(f"\tEpoch{i}")
         # # adding 1 second time delay
         # time.sleep(1)
-    train_loader, val_loader = h5dataset.createH5TrainLoader(path='/home/orin/Documents/FH12_23-24/FH12-EdgeMapper/comm-deploy/ecj1204.h5', batch_size=1)
+    train_loader, val_loader = h5dataset.createH5TrainLoader(path='C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/FH12-EdgeMapper/Device2/eer-ecj.h5', batch_size=1)
 
     # custom_loader = dataset.createCustomDataLoader(f'{file_path}')
     print("Custom loader len: ", len(train_loader))
@@ -228,20 +231,97 @@ def federated_averaging(models_dir: str):
     # load all the models
     loaded_models = []
     for model in models:
-        unet = UNet()
+        unet = MobileNetSkipConcat()
         unet.load_state_dict(torch.load(models_dir + model)['model_state_dict'])
         unet.eval()
         loaded_models.append(unet)
     
-    federated_model = UNet()
+    federated_model = MobileNetSkipConcat()
     federated_model.eval()
 
     # perform federated averaging
     for param_fm, *params_m in zip(federated_model.parameters(), *[model.parameters() for model in loaded_models]):
         param_fm.data.copy_(torch.stack([param_m.data for param_m in params_m]).mean(0))
 
-    return federated_model
+    checkpoint = {
+        'model_state_dict': federated_model.state_dict(),
+    }
+    if os.path.exists('global_model.pt'):
+        os.remove('global_model.pt')
+    torch.save(checkpoint, 'global_model.pt')
 
+def compute_errors(gt, pred, epsilon=1e-6):
+    # Ensure non-zero and non-negative ground truth values
+    gt = gt.float().to('cpu')
+    pred = pred.float().to('cpu')
 
+    gt = torch.clamp(gt, min=epsilon)
+    pred = torch.clamp(pred, min=epsilon)  # Also ensure predictions are positive
 
+    thresh = torch.max((gt / pred), (pred / gt))
+    a1 = (thresh < 1.25).float().mean()
+    a2 = (thresh < (1.25 ** 2)).float().mean()
+    a3 = (thresh < (1.25 ** 3)).float().mean()
 
+    rmse = torch.sqrt(((gt - pred) ** 2).mean())
+    rmse_log = torch.sqrt(((torch.log(gt) - torch.log(pred)) ** 2).mean())
+
+    abs_rel = torch.mean(torch.abs(gt - pred) / gt)
+    sq_rel = torch.mean(((gt - pred) ** 2) / gt)
+
+    return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
+
+def federated_eval(eval_dir: str):
+    device = (
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps"
+            if torch.backends.mps.is_available()
+            else "cpu"
+    )
+    model = MobileNetSkipConcat().to(device)
+    model.load_state_dict(torch.load('global_model.pt', map_location=torch.device(device))['model_state_dict'])
+    model.eval()
+    
+    f = h5py.File(eval_dir)
+    errors = []
+
+    random_indices = set()
+    while len(random_indices) < 100:
+        random_indices.add(random.randint(0, len(f['images']) - 1))
+
+    model.eval()
+    with torch.no_grad():
+        for i, idx in enumerate(list(random_indices)):
+            print(f'{i + 1} / 100')
+            img = f['images'][idx].astype(float)
+            img = torch.Tensor(img) / 255.0
+            img = img.permute(2, 1, 0)
+
+            gt = f['depths'][idx]
+            gt = torch.Tensor(gt)
+            gt = gt.unsqueeze(0).permute(0, 2, 1)
+            gt = gt / 1000.0
+            gt = torch.clamp(gt, 10, 1000)
+
+            input_tensor = img.unsqueeze(0)
+
+            pred = model(input_tensor)
+            pred = pred.squeeze(0)
+
+            errors.append(compute_errors(gt, pred))
+
+        error_tensors = [torch.tensor(e).to(device) for e in errors]
+
+        error_stack = torch.stack(error_tensors, dim=0)
+
+        mean_errors = error_stack.mean(0).cpu().numpy()
+
+        abs_rel = mean_errors[0]
+        sq_rel = mean_errors[1]
+        rmse = mean_errors[2]
+        rmse_log = mean_errors[3]
+        a1 = mean_errors[4]
+        a2 = mean_errors[5]
+        a3 = mean_errors[6]
+        print(f'abs_rel: {abs_rel}\nsq_rel: {sq_rel}\nrmse: {rmse}\nrmse_log: {rmse_log}\na1: {a1}\na2: {a2}\na3: {a3}\n')

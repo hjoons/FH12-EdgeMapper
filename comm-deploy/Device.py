@@ -7,7 +7,7 @@ server_port = 8888
 
 def main():
 
-    server_host = '192.168.1.43'
+    server_host = '127.0.0.1'
 
     while True:
         # create server

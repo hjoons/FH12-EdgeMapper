@@ -42,7 +42,7 @@ pwd = 'U8133051'
 
 global_path = ''
 
-global_file_path = 'epoch_250.pt'
+global_file_path = 'mbnv3_epoch_100.pt'
 
 
 class DeviceHandler(threading.Thread):
@@ -97,11 +97,13 @@ class DeviceHandler(threading.Thread):
             if msg == "ACK":
                 break
         print(f"Dev{self.device_num}: Setup acknowledged")
+        print()
 
         # send global model
         print(f"Dev{self.device_num}: Sending global model")
         utils.send_scp_file(global_path, device_path[self.device_num], self.device_ip, self.dev_user, self.dev_pwd, global_file_path, sock, "global_model.zip")
         print(f"Dev{self.device_num}: Global model sent")
+        print()
 
         while True:
             msg = utils.receive_message(sock)
@@ -115,7 +117,7 @@ class DeviceHandler(threading.Thread):
                 print(f"Dev{self.device_num}: Training done")
                 utils.send_message(sock, "ACK")
                 break
-
+        print()
         print(f"Dev{self.device_num}: Waiting for device model")
         pth = utils.receive_scp_file(self.cloud_path, sock)
         print(f"Dev{self.device_num}: Device model received")
@@ -157,6 +159,7 @@ if __name__ == '__main__':
         print('Zipping global model...')
         utils.zip_file(global_file_path, 'global_model.zip')
         print('Finished zipping\n')
+        print()
 
         # create device handlers
         # parameters: (device_num: int, device_ip: str, device_port: int, device_path: str, cloud_path: str)
@@ -176,14 +179,13 @@ if __name__ == '__main__':
         # aggregate models
         print('\nAggregating models...')
         # TODO: aggregate models
-        # currently takes model from single device and saves as aggregated global model
-        shutil.copy2('federated_models/federated_1.pt', 'global_model.pt')
-        global_file_path = 'global_model.pt'
+        fed_model = utils.federated_averaging('federated_models/')
         print('Models aggregated')
+        print('Evaluating global model...\n')
+
+        utils.federated_eval('C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/FH12-EdgeMapper/Device1/orgspace.h5')
 
         # delete federated models after aggregation and global zip
         for k in range(num_devices):
             os.remove(f'federated_models/federated_{k}.pt')
         os.remove('global_model.zip')
-
-
