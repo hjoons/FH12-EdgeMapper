@@ -11,6 +11,8 @@ import h5py
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 import random
+import time
+from mobilenetv3 import MobileNetSkipConcat
 
 # import torch
 # import argparse
@@ -242,9 +244,10 @@ def create_data_loader(x, y):
     return loader
     
 
-def main(path: str):
+def main():
     # create_frames(f"{path}")
-    x, y = create_data_set("ecj1204.h5")
+    # x, y = create_data_set("ecj1204.h5")
+    x, y = create_data_set("C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/FH12-EdgeMapper/Device1/orgspace.h5")
     loader = create_data_loader(x, y)
     print("done")
     device = (
@@ -255,54 +258,51 @@ def main(path: str):
         else "cpu"
     )
     print(f"Now using device: {device}")
-    model = UNet().to(torch.device(device))
-    model.load_state_dict(torch.load('../../epoch_250.pt')['model_state_dict'])
+    model = MobileNetSkipConcat().to(torch.device(device))
+    model.load_state_dict(torch.load('../../mbnv3_epoch_100.pt', map_location=torch.device(device))['model_state_dict'])
     model.eval()
     print(f"Put model on device")
+
+    fig, axs = plt.subplots(1, 3, figsize=(20, 7))
+
     with torch.no_grad():
         for batch_idx, (image, truth) in enumerate(loader):
-            plt.figure()
-            plt.subplot(1,3,1)
             color_img = image[0].transpose(0,1)
             color_img = color_img.transpose(1,2)
             color_img = torch.round(color_img).to(dtype=torch.int)
-            plt.imshow(color_img)
-            plt.title('Color image')
-                        
-            plt.subplot(1,3,2)
-            plt.imshow(truth[0][0])
-            plt.title('Ground Truth')
             
             start_time = time.perf_counter()
             image = image / 255.0
             image = image.to(torch.device(device))
-            truth = truth.to(torch.device(device))
+            # truth = truth.to(torch.device(device))
             cpu_time = time.perf_counter()
-            
-            outputs = model(image)
-            print(f"Model ran for batch {batch_idx}")
-
 
             outputs = model(image)
             outputs = 1000.0 / outputs
             gpu_time = time.perf_counter()
-            plt.subplot(1,3,3)
-            plt.imshow(outputs[0][0].cpu())
-            plt.title('Predicted')
-            plt.show()
+            print(f"Model ran for batch {batch_idx}")
+
+            axs[0].imshow(color_img)
+            axs[0].set_title('Color Image')
+
+            # Display the transformed depth image
+            axs[1].imshow(truth[0][0])
+            axs[1].set_title('Transformed Depth Image')
+
+            # Display the predicted image
+            axs[2].imshow(outputs[0][0])
+            axs[2].set_title('Predicted Image')
+
+            plt.pause(0.001)  # Pause for a short period to allow the images to update
 
             total_time = gpu_time - start_time
             gpu_time = gpu_time - cpu_time
             cpu_time = cpu_time - start_time
-            print(f"Model ran for batch {batch_idx}")
+            # print(f"Model ran for batch {batch_idx}")
             print(f'CPU time: {cpu_time}, GPU time: {gpu_time}, FPS: {1/total_time}')
-            break
+            #break
 
 def main2():
-    # create_frames(f"{path}")
-    #x, y = create_data_set("ecj1204.h5")
-    #loader = create_data_loader(x, y)
-    #print("done")
     device = (
         "cuda"
         if torch.cuda.is_available()
@@ -340,7 +340,6 @@ def main2():
         if capture is not None:
             # Get the color image from the capture
             color_image = capture.color
-            depth_image = capture.depth
             transformed_depth_image = capture.transformed_depth
             
             color_image_rgb = cv2.cvtColor(color_image, cv2.COLOR_BGRA2RGB)[120:600, 320:960, 0:3]
@@ -354,9 +353,6 @@ def main2():
             pred = pred.detach().squeeze(0).squeeze(0).cpu()
             pred = 1000 / pred
 
-            # If the 'q' key is pressed, break the loop
-            # if cv2.waitKey(1) & 0xFF == ord('q'):
-                # break
             axs[0].imshow(color_image_rgb)
             axs[0].set_title('Color Image')
 
@@ -367,8 +363,6 @@ def main2():
             # Display the predicted image
             axs[2].imshow(pred)
             axs[2].set_title('Predicted Image')
-
-
 
             plt.pause(0.001)  # Pause for a short period to allow the images to update
 
@@ -388,4 +382,4 @@ if __name__ == "__main__":
 #    argsparser.add_argument("--path", help="path to mkv file")
 #    args = argsparser.parse_args()
 #    main(args.path)
-     main2()
+     main()

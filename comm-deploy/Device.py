@@ -1,7 +1,7 @@
 import utils
 import socket
 import os
-import torch
+
 import argparse
 
 server_port = 8888
@@ -17,12 +17,14 @@ def main(ip_addr: str):
         server_socket.bind((server_host, server_port))
         server_socket.listen(5)
 
-        print(f"Device is listening on {server_host}:{server_port}")
+        print(f"Device is listening on {server_host}:{server_port}\n")
 
         # Accept a client connection
         sock, client_address = server_socket.accept()
 
         print(f"Cloud accepted from address: {client_address[0]}")
+        print()
+        print(f"Receiving Setup Info...")
 
         # connect message
         while True:
@@ -41,20 +43,21 @@ def main(ip_addr: str):
         device_num = split_msg[4]
         cloud_user = split_msg[5]
         cloud_pwd = split_msg[6]
-        
+
         if not os.path.exists(dev_path):
             os.makedirs(dev_path)
         os.chdir(dev_path)
         dev_path = ''
         print('Received setup info')
         utils.send_message(sock, "ACK")
+        print()
 
         # After setup info receive global model
         print('Waiting for global model...')
         global_file = utils.receive_scp_file(dev_path, sock)
         print(f'Received global model: {global_file}')
-        print(f"Model loaded!")
-        
+        print(f"Model loaded!\n")
+
         # Start Training ack message
         utils.send_message(sock, 'Start')
 
@@ -63,20 +66,21 @@ def main(ip_addr: str):
         federated_file = f'federated_{device_num}.pt'
         federated_file = utils.train(learning_rate, num_epochs, global_file, federated_file)
         print('Training complete')
-        
+
         print(f"Training saved as {dev_path + federated_file}")
+        print()
 
         # training done
         utils.send_message(sock, 'Done')
         while msg != 'ACK':
             msg = utils.receive_message(sock)
-        
+
         # send model
         federated_zip = f"federated_{device_num}.zip"
-        print('Sending local model')
+        print('Sending local model...')
         utils.zip_file(dev_path + federated_file, dev_path + federated_zip)
         utils.send_scp_file(dev_path, remote_path, client_address[0], cloud_user, cloud_pwd, federated_file, sock, federated_zip)
-        print('Local model sent')
+        print('Local model sent!')
 
         # delete local model and zip
         os.remove(dev_path + federated_file)

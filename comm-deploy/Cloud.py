@@ -4,14 +4,13 @@ import utils
 import threading
 import os
 import argparse
-import torch
-import shutil
 
 # placeholders, get this from params
 learning_rate = 0.01
 num_epochs = 50
 num_loops = 5
 
+# Device information
 dev_ip = ['192.168.1.147',
           '127.0.0.1',
           '127.0.0.1',
@@ -97,27 +96,27 @@ class DeviceHandler(threading.Thread):
             if msg == "ACK":
                 break
         print(f"Dev{self.device_num}: Setup acknowledged")
-        print()
 
         # send global model
         print(f"Dev{self.device_num}: Sending global model")
         utils.send_scp_file(global_path, device_path[self.device_num], self.device_ip, self.dev_user, self.dev_pwd, global_file_path, sock, "global_model.zip")
         print(f"Dev{self.device_num}: Global model sent")
-        print()
 
+        # Wait for training start message
         while True:
             msg = utils.receive_message(sock)
             if msg == "Start":
                 print(f"Dev{self.device_num}: Training started")
                 break
         
+        # Wait for training done message
         while True:
             msg = utils.receive_message(sock)
             if msg == "Done":
                 print(f"Dev{self.device_num}: Training done")
                 utils.send_message(sock, "ACK")
                 break
-        print()
+        
         print(f"Dev{self.device_num}: Waiting for device model")
         pth = utils.receive_scp_file(self.cloud_path, sock)
         print(f"Dev{self.device_num}: Device model received")
@@ -133,6 +132,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_epochs', '--e', type=int, default=1, help='Number of epochs for the model')
     parser.add_argument('--comm_rounds', '--r', type=int, default=2, help='Number of communication rounds for the model')
     parser.add_argument('--num_devices', '--n', type=int, default=1, help='Number of devices')
+    parser.add_argument('--checkpoint', '--ch', default='mbnv3_epoch_100.pt', help='File path for checkpoint from which to start federated training')
 
     args = parser.parse_args()
 
@@ -145,15 +145,8 @@ if __name__ == '__main__':
 
     if not os.path.exists('federated_models/'):
         os.makedirs('federated_models/')
-
-    # global_file_path = 'epoch_250.pt'
     
     for i in range(num_loops):
-        # check for global model
-        # if not os.path.exists('global_model.pth'):
-        #     # TODO: replace with actual model
-        #     with open('global_model.pth', "w") as file:
-        #         file.write("Fake global model to send to edge devices")
 
         # zip global model
         print('Zipping global model...')
@@ -163,6 +156,7 @@ if __name__ == '__main__':
 
         # create device handlers
         # parameters: (device_num: int, device_ip: str, device_port: int, device_path: str, cloud_path: str)
+        print(f'Starting communication round {i+1}')
         devs = []
         for k in range(num_devices):
             dev = DeviceHandler(k, dev_ip[k], dev_port[k], p + 'federated_models/', dev_users[k], dev_pwds[k])
@@ -178,11 +172,11 @@ if __name__ == '__main__':
 
         # aggregate models
         print('\nAggregating models...')
-        # TODO: aggregate models
-        fed_model = utils.federated_averaging('federated_models/')
+        fed_model = utils.fed_avg('federated_models/')
+        global_file_path = 'global_model.pt'
         print('Models aggregated')
-        print('Evaluating global model...\n')
 
+        print('Evaluating global model...\n')
         utils.federated_eval('C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/FH12-EdgeMapper/Device1/orgspace.h5')
 
         # delete federated models after aggregation and global zip

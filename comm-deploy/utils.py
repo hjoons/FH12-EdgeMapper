@@ -11,8 +11,19 @@ import random
 from frame_generator import UNet
 from mobilenetv3 import MobileNetSkipConcat
 from losses import ssim, depth_loss
+import copy
 
 def DepthNorm(depth, max_depth=1000.0):
+    """
+    Normalize depth values.
+
+    Args:
+        depth (float): Depth value to be normalized.
+        max_depth (float): Maximum depth value for normalization.
+
+    Returns:
+        float: Normalized depth value.
+    """
     return max_depth / depth
 
 def zip_file(file, zip_file_name):
@@ -53,6 +64,18 @@ def unzip_file(zip_file, destination_folder):
       
 
 def train(learning_rate, num_epochs, file_path, federated_path):
+    """
+    Train the model using federated learning.
+
+    Args:
+        learning_rate (float): Learning rate for the optimizer.
+        num_epochs (int): Number of training epochs.
+        file_path (str): Path to the pretrained model file.
+        federated_path (str): Path to save the federated model.
+
+    Returns:
+        str: Path to the saved federated model.
+    """
     device = (
             "cuda"
             if torch.cuda.is_available()
@@ -61,27 +84,30 @@ def train(learning_rate, num_epochs, file_path, federated_path):
             else "cpu"
         )
     print(f"Now using device: {device}")
+
+    # model initialization and loading weights
     model = MobileNetSkipConcat().to(torch.device(device))
     model.load_state_dict(torch.load(f'{file_path}', map_location=torch.device(device))['model_state_dict'])
-    # model.eval()
-    # not using any model information for this step
-        # print(f"\tEpoch{i}")
-        # # adding 1 second time delay
-        # time.sleep(1)
+
+    # data loading
     train_loader, val_loader = h5dataset.createH5TrainLoader(path='C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/FH12-EdgeMapper/Device2/eer-ecj.h5', batch_size=1)
 
     # custom_loader = dataset.createCustomDataLoader(f'{file_path}')
     print("Custom loader len: ", len(train_loader))
-    
     print("DataLoaders now ready ...")
+
     num_trainloader = len(train_loader)
+
+    # optimizer and loss criterion optimization
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     l1_criterion = torch.nn.L1Loss()
     train_loss = []
     test_loss = []
     print(f"About to train")
+
+    # training loop
     for epoch in range(num_epochs):
-        time_start = time.perf_counter()
+        # time_start = time.perf_counter()
         model = model.train()
         running_loss = 0
         for batch_idx, batch in enumerate(train_loader):
@@ -121,11 +147,12 @@ def train(learning_rate, num_epochs, file_path, federated_path):
             net_loss.backward()
 
             optimizer.step()
-            # batch_iter += 1
             break # Only for demo purposes
 
         train_loss.append(running_loss / num_trainloader)
         print(f'epoch: {epoch + 1} train loss: {running_loss / num_trainloader}')
+
+    # save trained model
     checkpoint = {
         'epoch': epoch + 1,
         'model_state_dict': model.state_dict(),
@@ -135,14 +162,31 @@ def train(learning_rate, num_epochs, file_path, federated_path):
     torch.save(checkpoint, model_path)
     return federated_path
 
+# Function to send a message over a socket
 def send_message(sock: socket.socket, msg: str):
     sock.sendall(msg.encode())
 
+# Function to receive a message over a socket
 def receive_message(sock: socket.socket) -> str:
     msg = sock.recv(1024)
     return msg.decode()
 
 def send_scp_file(local_path: str, remote_path: str, ip: str, user: str, pwd: str, file_name: str, sock: socket.socket, zip_name: str):
+    """
+    Send a file using SCP.
+
+    Args:
+        local_path (str): Local path of the file.
+        remote_path (str): Remote path to save the file.
+        ip (str): IP address of the remote server.
+        user (str): Username for authentication.
+        pwd (str): Password for authentication.
+        file_name (str): Name of the file to be sent.
+        sock (socket): Socket over which messages are sent and received.
+        zip_name (str): Name of the zipped file.
+    Returns:
+        None
+    """
     # zip_file(local_path + file_name, local_path + zip_name)
     file_size = os.path.getsize(local_path + file_name)
     
@@ -213,6 +257,66 @@ def receive_scp_file(destination_path: str, sock: socket.socket):
 
     return destination_path + file_name
 
+def fed_avg(models_dir:str):
+    """
+    Perform federated averaging on the models in the specified directory and save the federated model.
+
+    Args:
+        models_dir (str): Path to the directory containing the models to be averaged.
+
+    Returns:
+        None
+    """
+    device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
+
+    # get all the models in the models_dir directory
+    models = os.listdir(models_dir)
+    num_models = len(models)
+    print(f"Number of models: {num_models}")
+
+    # load all the weights
+    loaded_weights = []
+    for model in models:
+        local_weight = torch.load(models_dir + model, map_location=torch.device(device))['model_state_dict']
+        loaded_weights.append(local_weight)
+
+    # calculate the federated average of the weights
+    checkpoint = {
+        'model_state_dict': aggregate_avg(loaded_weights)
+    }
+
+    # save global model
+    if os.path.exists('global_model.pt'):
+        os.remove('global_model.pt')
+    torch.save(checkpoint, 'global_model.pt')
+
+def aggregate_avg(local_weights):
+    """
+    Aggregate and calculate the average of model weights.
+
+    Args:
+        local_weights: list of local model weights
+
+    Returns:
+        Dict[str, torch.Tensor]: Average of the model weights.
+    """
+    w_glob = None
+    for idx, w_local in enumerate(local_weights):
+        if idx == 0:
+            w_glob = copy.deepcopy(w_local)
+        else:
+            for k in w_glob.keys():
+                w_glob[k] = torch.add(w_glob[k], w_local[k])
+    for k in w_glob.keys():
+        w_glob[k] = torch.div(w_glob[k], len(local_weights))
+    return w_glob
+
 def federated_averaging(models_dir: str):
     """
     Perform federated averaging on the models in the models_dir directory
@@ -223,6 +327,15 @@ def federated_averaging(models_dir: str):
     Returns:
         None
     """
+
+    device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
+
     # get all the models in the models_dir directory
     models = os.listdir(models_dir)
     num_models = len(models)
@@ -232,7 +345,7 @@ def federated_averaging(models_dir: str):
     loaded_models = []
     for model in models:
         unet = MobileNetSkipConcat()
-        unet.load_state_dict(torch.load(models_dir + model)['model_state_dict'])
+        unet.load_state_dict(torch.load(models_dir + model, map_location=torch.device(device))['model_state_dict'])
         unet.eval()
         loaded_models.append(unet)
     
@@ -251,6 +364,17 @@ def federated_averaging(models_dir: str):
     torch.save(checkpoint, 'global_model.pt')
 
 def compute_errors(gt, pred, epsilon=1e-6):
+    """
+    Compute error metrics between ground truth and predicted depth maps.
+
+    Args:
+        gt (torch.Tensor): Ground truth depth map.
+        pred (torch.Tensor): Predicted depth map.
+        epsilon (float): Small value to avoid division by zero.
+
+    Returns:
+        Tuple: Tuple containing various error metrics.
+    """
     # Ensure non-zero and non-negative ground truth values
     gt = gt.float().to('cpu')
     pred = pred.float().to('cpu')
@@ -272,6 +396,15 @@ def compute_errors(gt, pred, epsilon=1e-6):
     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
 def federated_eval(eval_dir: str):
+    """
+    Evaluate a federated model on a dataset.
+
+    Args:
+        eval_dir (str): Path to the dataset for evaluation.
+
+    Returns:
+        None
+    """
     device = (
             "cuda"
             if torch.cuda.is_available()
@@ -287,13 +420,13 @@ def federated_eval(eval_dir: str):
     errors = []
 
     random_indices = set()
-    while len(random_indices) < 100:
+    while len(random_indices) < 50:
         random_indices.add(random.randint(0, len(f['images']) - 1))
 
     model.eval()
     with torch.no_grad():
         for i, idx in enumerate(list(random_indices)):
-            print(f'{i + 1} / 100')
+            # print(f'{i + 1} / 100')
             img = f['images'][idx].astype(float)
             img = torch.Tensor(img) / 255.0
             img = img.permute(2, 1, 0)

@@ -50,7 +50,7 @@ while True:
             rgb_images.resize(i + 1, axis=0)
             rgb_images[i] = img_color
 
-        if capture.depth is not None:
+        if capture.transformed_depth is not None:
             # img_depth = cv2.resize(capture.transformed_depth[80:720, 446: 926], (480, 640))
             img_depth = capture.transformed_depth[120:600, 320:960]
 
