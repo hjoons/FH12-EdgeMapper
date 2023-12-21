@@ -18,6 +18,16 @@ from models.mobilenetv3 import MobileNetSkipConcat
 from models.losses import ssim, depth_loss
 
 def convert_to_bgra_if_required(color_format: ImageFormat, color_image):
+    """
+    Converts the color image to BGRA if required.
+
+    Args:
+        color_format (ImageFormat): Color format of the image
+        color_image (np.ndarray): Color image
+
+    Returns:
+        np.ndarray: Color image in BGRA format
+    """
     # examples for all possible pyk4a.ColorFormats
     if color_format == ImageFormat.COLOR_MJPG:
         color_image = cv2.imdecode(color_image, cv2.IMREAD_COLOR)
@@ -198,10 +208,29 @@ def train(learning_rate, num_epochs, file_path, federated_path):
 
 # Function to send a message over a socket
 def send_message(sock: socket.socket, msg: str):
+    """
+    Function to send a message over a socket
+
+    Args:
+        sock (socket): Socket over which messages are sent and received.
+        msg (str): Message to be sent.
+
+    Returns:
+        None
+    """
     sock.sendall(msg.encode())
 
 # Function to receive a message over a socket
 def receive_message(sock: socket.socket) -> str:
+    """
+    Function to receive a message over a socket.
+
+    Args:
+        sock (socket): Socket over which messages are sent and received.
+
+    Returns:
+        str: Received message.
+    """
     msg = sock.recv(1024)
     return msg.decode()
 

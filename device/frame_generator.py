@@ -13,11 +13,23 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../'
 
 from models.unet import UNet
 from models.mobilenetv3 import MobileNetSkipConcat
+from dataset.dataset import CustomDataset
 
 
 
 
 def create_data_set(file_name):
+    """
+    Creates a list of input training tensors and output training tensors from a .h5 file.
+    Normalizes the output tensors by dividing by the max value of the output tensors.
+
+    Args:
+        file_name (str): name of the .h5 file
+
+    Returns:
+        X_train_tensors (list): list of input training tensors
+        y_train_tensors (list): list of output training tensors
+    """
     mat_file = h5py.File(f'{file_name}', 'r')
     rgb_images = mat_file['images'][:]
     depth_images = mat_file['depths'][:]
@@ -41,6 +53,16 @@ def create_data_set(file_name):
     return X_train_tensors, y_train_tensors
 
 def create_data_loader(x, y):
+    """
+    Creates a data loader from a list of input tensors and output tensors
+
+    Args:
+        x (list): list of input tensors
+        y (list): list of output tensors
+    
+    Returns:
+        loader (torch.utils.data.DataLoader): data loader
+    """
     dataset = CustomDataset(x, y)
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
     return loader
@@ -49,9 +71,15 @@ def create_data_loader(x, y):
 def main():
     # create_frames(f"{path}")
     # x, y = create_data_set("ecj1204.h5")
+
+    # Create a data loader from an h5 file
+    print("Creating data loader...")
     x, y = create_data_set("C:/Users/vliew/Documents/UTAustin/Fall2023/SeniorDesign/FH12-EdgeMapper/Device1/orgspace.h5")
     loader = create_data_loader(x, y)
     print("done")
+    print()
+
+    # Choose the device to run the model on, and load the model into memory
     device = (
         "cuda"
         if torch.cuda.is_available()
@@ -69,11 +97,13 @@ def main():
 
     with torch.no_grad():
         for batch_idx, (image, truth) in enumerate(loader):
+            # Convert input from (batch_size, 3, 480, 640) to (batch_size, 480, 640, 3)
             color_img = image[0].transpose(0,1)
             color_img = color_img.transpose(1,2)
             color_img = torch.round(color_img).to(dtype=torch.int)
             
             start_time = time.perf_counter()
+            # Convert to tensor in range [0, 1]
             image = image / 255.0
             image = image.to(torch.device(device))
             # truth = truth.to(torch.device(device))
@@ -105,6 +135,7 @@ def main():
             #break
 
 def main2():
+    # Choose the device to run the model on, and load the model into memory
     device = (
         "cuda"
         if torch.cuda.is_available()
@@ -117,12 +148,13 @@ def main2():
     model.load_state_dict(torch.load('../../epoch_250.pt')['model_state_dict'])
     model.eval()
     print(f"Model loaded!")
+
     # Create a PyK4A object
     print(f"Starting capture...")
     config = Config(
-        color_resolution=ColorResolution.RES_720P,
-        depth_mode=DepthMode.NFOV_UNBINNED,
-        camera_fps=FPS.FPS_15
+        color_resolution=ColorResolution.RES_720P, # 720P to balance quality and speed
+        depth_mode=DepthMode.NFOV_UNBINNED, # Narrow Field of View because we crop, unbinned to retain resolution
+        camera_fps=FPS.FPS_15 # 15 Frames per Second
         #color_format=pyk4a.ImageFormat.COLOR_BGRA32,
     )
 

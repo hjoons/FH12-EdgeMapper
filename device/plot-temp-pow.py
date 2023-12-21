@@ -2,6 +2,7 @@ from subprocess import PIPE, Popen
 import matplotlib.pyplot as plt
 import re
 
+# arrays to hold data
 seconds = []
 cpu_temps = []
 gpu_temps = []

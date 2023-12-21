@@ -1,28 +1,14 @@
 import utils
 import socket
-import argparse
 import os
 
-server_host = '127.0.0.1'  # Listen on all available network interfaces
-server_port = 8888  # Specify the SSH port
+import argparse
 
-dev_ip = ['127.0.0.1',
-          '127.0.0.1',
-          '127.0.0.1',
-          '127.0.0.1']
+server_port = 8888
 
-dev_port = [8888, 8889, 8890, 8891]
+def main(ip_addr: str):
 
-def main():
-    parser = argparse.ArgumentParser(description='Argument Parser for device number')
-
-    parser.add_argument('--device_number', '--n', type=int, default=0, help='Device number')
-    args = parser.parse_args()
-
-    server_host = dev_ip[args.device_number]
-    server_port = dev_port[args.device_number]
-
-    p = os.getcwd().replace('\\', '/') + '/'
+    server_host = ip_addr
 
     while True:
         # create server
@@ -31,12 +17,14 @@ def main():
         server_socket.bind((server_host, server_port))
         server_socket.listen(5)
 
-        print(f"Device is listening on {server_host}:{server_port}")
+        print(f"Device is listening on {server_host}:{server_port}\n")
 
         # Accept a client connection
         sock, client_address = server_socket.accept()
 
         print(f"Cloud accepted from address: {client_address[0]}")
+        print()
+        print(f"Receiving Setup Info...")
 
         # connect message
         while True:
@@ -51,47 +39,49 @@ def main():
         learning_rate = float(split_msg[0])
         num_epochs = int(split_msg[1])
         remote_path = split_msg[2]  # path to send the federated model
-        dev_path = os.path.expanduser(split_msg[3])
+        dev_path = os.path.expanduser(split_msg[3]) # path that the device will save the model and perform all computations
         device_num = split_msg[4]
         cloud_user = split_msg[5]
         cloud_pwd = split_msg[6]
-        
+
+        # Change directory to device path
         if not os.path.exists(dev_path):
             os.makedirs(dev_path)
         os.chdir(dev_path)
         dev_path = ''
         print('Received setup info')
         utils.send_message(sock, "ACK")
+        print()
 
         # After setup info receive global model
+        print('Waiting for global model...')
         global_file = utils.receive_scp_file(dev_path, sock)
         print(f'Received global model: {global_file}')
-        
+        print(f"Model loaded!\n")
+
         # Start Training ack message
         utils.send_message(sock, 'Start')
 
         # train func
         print('Starting training')
-        utils.train(learning_rate, num_epochs)
+        federated_file = f'federated_{device_num}.pt'
+        federated_file = utils.train(learning_rate, num_epochs, global_file, federated_file)
         print('Training complete')
 
-        # dummy trained file
-        federated_file = f"federated_{device_num}.pt"
-        with open(dev_path + federated_file, "w") as file:
-            file.write("Dummy file for federated training")
         print(f"Training saved as {dev_path + federated_file}")
+        print()
 
         # training done
         utils.send_message(sock, 'Done')
         while msg != 'ACK':
             msg = utils.receive_message(sock)
-        
+
         # send model
         federated_zip = f"federated_{device_num}.zip"
-        print('Sending local model')
+        print('Sending local model...')
         utils.zip_file(dev_path + federated_file, dev_path + federated_zip)
         utils.send_scp_file(dev_path, remote_path, client_address[0], cloud_user, cloud_pwd, federated_file, sock, federated_zip)
-        print('Local model sent')
+        print('Local model sent!')
 
         # delete local model and zip
         os.remove(dev_path + federated_file)
@@ -103,4 +93,9 @@ def main():
         server_socket.close()
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="Specify host")
+    parser.add_argument('--ip', type=str, default='127.0.0.1', help='Host IP')
+    args = parser.parse_args()
+
+    ip = args.ip
+    main(ip)

@@ -128,6 +128,20 @@ def image_gradients(img, device):
 
 # Now we define the actual depth loss function
 def depth_loss(y_true, y_pred, theta=0.1, device="cuda", maxDepth=1000.0 / 10.0):
+    """
+    Depth loss function:
+        - Takes image gradients and computes the depth loss using L1 norm
+
+    Args:
+        y_true (torch.Tensor): Ground truth depth map
+        y_pred (torch.Tensor): Predicted depth map
+        theta (float, optional): Constant to scale the depth loss. Defaults to 0.1.
+        device (str, optional): Device to use. Defaults to "cuda".
+        maxDepth (float, optional): Maximum depth. Defaults to 100.0.
+
+    Returns:
+        torch.Tensor: Depth loss
+    """
 
     # Edges
     dy_true, dx_true = image_gradients(y_true, device)

@@ -31,6 +31,18 @@ def DepthNorm(depth, max_depth=1000.0):
     return max_depth / depth
 
 def train(lr=1e-3, epochs=75, samples=2500, batch_size=4):
+    """
+    Function to train a model for depth estimation. Uses the NYU Depth V2 dataset.
+
+    Args:
+        lr (float): Learning rate for the model.
+        epochs (int): Number of epochs to train for.
+        samples (int): Number of samples to train on.
+        batch_size (int): Batch size for training.
+    
+    Returns:
+        None (Saves the model to disk)
+    """
     writer = SummaryWriter('logs')
     
     device = (
@@ -43,6 +55,7 @@ def train(lr=1e-3, epochs=75, samples=2500, batch_size=4):
     print(f"Now using device: {device}")
     
     print("Loading data ...")
+    # Create the DataLoaders for the training data from the NYU V2 dataset
     train_loader, val_loader = dataset.createTrainLoader("./data.zip", samples=samples, batch_size=batch_size)
     
     test_loader = dataset.createTestLoader("./data.zip", batch_size=batch_size)
@@ -83,6 +96,7 @@ def train(lr=1e-3, epochs=75, samples=2500, batch_size=4):
             
             gradient_loss = depth_loss(normalized_depth, pred, device=device)
             
+            # Combine the ssim loss, gradient loss, and l1 loss
             net_loss = (
                 (1.0 * ssim_loss)
                 + (1.0 * torch.mean(gradient_loss))
@@ -100,6 +114,7 @@ def train(lr=1e-3, epochs=75, samples=2500, batch_size=4):
 
         train_loss.append(running_loss / num_trainloader)
 
+        # Perform the evaluation on the test set
         model.eval()
         with torch.no_grad():
             running_test_loss = 0

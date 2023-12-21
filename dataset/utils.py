@@ -2,6 +2,16 @@ from pyk4a import ImageFormat
 import cv2
 
 def convert_to_bgra_if_required(color_format: ImageFormat, color_image):
+    """
+    Converts the color image to BGRA if required.
+
+    Args:
+        color_format (ImageFormat): Color format of the image
+        color_image (np.ndarray): Color image
+
+    Returns:
+        np.ndarray: Color image in BGRA format
+    """
     # examples for all possible pyk4a.ColorFormats
     if color_format == ImageFormat.COLOR_MJPG:
         color_image = cv2.imdecode(color_image, cv2.IMREAD_COLOR)
