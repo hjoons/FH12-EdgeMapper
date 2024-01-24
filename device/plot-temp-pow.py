@@ -24,6 +24,7 @@ CPU_GPU_pow_pattern = re.compile(r'VDD_CPU_GPU_CV (\d+)mW')
 Board_pow_pattern = re.compile(r'VDD_IN (\d+)mW')
 RAM_pattern = re.compile(r'RAM (\d+)/')
 
+# command to run tegrastats
 command = ['sudo', '-S', 'tegrastats']
 
 # start tegrastats in background

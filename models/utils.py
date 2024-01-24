@@ -4,6 +4,18 @@ from PIL import Image
 import torchsummary
 
 def threshold_percentage(output, target, threshold_val):
+    """
+    Function that calculates the percentage of pixels that have a ratio between the output and target
+    that is less than a threshold value
+
+    Args:
+        output (torch.Tensor): Output tensor
+        target (torch.Tensor): Target tensor
+        threshold_val (float): Threshold value
+
+    Returns:
+        float: Percentage of pixels that have a ratio between the output and target that is less than a threshold value
+    """
     # Scale invariant
     
     d1 = output / target
@@ -19,16 +31,46 @@ def threshold_percentage(output, target, threshold_val):
     return threshold_mat.mean()
 
 def REL(output, target):
+    """
+    Function that calculates the relative error between the output and target
+
+    Args:
+        output (torch.Tensor): Output tensor
+        target (torch.Tensor): Target tensor
+
+    Returns:
+        float: Relative error between the output and target
+    """
     diff = torch.abs(target - output) / target
     return torch.sum(diff) / (output.shape[2] * output.shape[3])
 
 def RMS(output, target):
+    """
+    Function that calculates the root mean squared error between the output and target
+
+    Args:
+        output (torch.Tensor): Output tensor
+        target (torch.Tensor): Target tensor
+
+    Returns:
+        float: Root mean squared error between the output and target
+    """
     diff = target - output
     squared = torch.square(diff)
     summed = torch.sum(squared) / (output.shape[2] * output.shape[3])
     return torch.sqrt(summed)
 
 def evaluate(model, test_loader):
+    """
+    Function that evaluates the model on the test set. Calculates the deltas, REL, and RMS
+
+    Args:
+        model (torch.nn.Module): Model to evaluate
+        test_loader (torch.utils.data.DataLoader): Test loader
+
+    Returns:
+        None
+    """
     model.eval()
     d1 = 0
     d2 = 0
@@ -64,6 +106,15 @@ def DepthNorm(depth, max_depth=1000.0):
     return max_depth / depth
 
 def load_images(image_files):
+    """
+    Function that loads images from a list of image files
+
+    Args:
+        image_files (list): List of image files
+
+    Returns:
+        np.ndarray: Array of images
+    """
     loaded_images = []
     for file in image_files:
         x = np.clip(
@@ -74,5 +125,14 @@ def load_images(image_files):
     return np.stack(loaded_images, axis=0)
 
 def model_summary(model):
+    """
+    Function that prints the model summary
+
+    Args:
+        model (torch.nn.Module): Model to print summary of
+
+    Returns:
+        None
+    """
     model = model.to(torch.device("cuda"))
     torchsummary.summary(model, input_size=(3,640,480), batch_size=1)

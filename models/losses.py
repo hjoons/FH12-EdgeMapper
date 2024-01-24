@@ -8,6 +8,16 @@ https://github.com/ialhashim/DenseDepth/blob/master/PyTorch/loss.py
 """
 
 def gaussian(window_size, sigma):
+    """
+    Function that returns a 1-dimensional Gaussian window of a given size and sigma (standard deviation)
+
+    Args:
+        window_size (int): Size of the window
+        sigma (float): Standard deviation of the Gaussian
+
+    Returns:
+        torch.Tensor: 1-dimensional Gaussian window
+    """
     gauss = torch.Tensor(
         [
             math.exp(-((x - window_size // 2) ** 2) / float(2 * sigma ** 2))
@@ -18,6 +28,16 @@ def gaussian(window_size, sigma):
 
 
 def create_window(window_size, channel=1):
+    """
+    Function that creates a 2-dimensional Gaussian window of a given size and sigma (standard deviation)
+
+    Args:
+        window_size (int): Size of the window
+        channel (int, optional): Number of channels. Defaults to 1.
+
+    Returns:
+        torch.Tensor: 2-dimensional Gaussian window expanded to the number of channels
+    """
 
     _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
     _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
@@ -32,6 +52,21 @@ def create_window(window_size, channel=1):
 def ssim(
     img1, img2, val_range, window_size=11, window=None, size_average=True, full=False
 ):
+    """
+    Function that calculates the Structural Similarity Index Measure (SSIM) loss between two images
+
+    Args:
+        img1 (torch.Tensor): First image
+        img2 (torch.Tensor): Second image
+        val_range (int): Range of pixel values
+        window_size (int, optional): Size of the window. Defaults to 11.
+        window (torch.Tensor, optional): Window tensor. Defaults to None.
+        size_average (bool, optional): If True, the loss is averaged over all images in the batch. Defaults to True.
+        full (bool, optional): If True, returns the full SSIM instead of the mean SSIM. Defaults to False.
+
+    Returns:
+        torch.Tensor: SSIM loss
+    """
 
     L = val_range  # L is the dynamic range of the pixel values (255 for 8-bit grayscale images),
 
@@ -88,6 +123,17 @@ def ssim(
 
 
 def image_gradients(img, device):
+    """
+    Function that calculates the image gradients in both directions of a given image
+
+    Args:
+        img (torch.Tensor): Image
+        device (str): Device to use
+
+    Returns:
+        torch.Tensor: Image gradients in the y direction
+        torch.Tensor: Image gradients in the x direction
+    """
 
     """works like tf one"""
     if len(img.shape) != 4:

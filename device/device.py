@@ -7,11 +7,17 @@ import argparse
 server_port = 8888
 
 def main(ip_addr: str):
+    """
+    Function that runs the device loop for federated learning
+
+    Args:
+        ip_addr (str): IP address of the cloud to connect to
+    """
 
     server_host = ip_addr
 
     while True:
-        # create server
+        # establish connection with cloud
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind((server_host, server_port))
@@ -19,7 +25,7 @@ def main(ip_addr: str):
 
         print(f"Device is listening on {server_host}:{server_port}\n")
 
-        # Accept a client connection
+        # Accept the cloud connection
         sock, client_address = server_socket.accept()
 
         print(f"Cloud accepted from address: {client_address[0]}")
@@ -40,9 +46,9 @@ def main(ip_addr: str):
         num_epochs = int(split_msg[1])
         remote_path = split_msg[2]  # path to send the federated model
         dev_path = os.path.expanduser(split_msg[3]) # path that the device will save the model and perform all computations
-        device_num = split_msg[4]
-        cloud_user = split_msg[5]
-        cloud_pwd = split_msg[6]
+        device_num = split_msg[4] # the device number given by the cloud
+        cloud_user = split_msg[5] # cloud username (for scp)
+        cloud_pwd = split_msg[6] # cloud password (for scp)
 
         # Change directory to device path
         if not os.path.exists(dev_path):
@@ -71,7 +77,7 @@ def main(ip_addr: str):
         print(f"Training saved as {dev_path + federated_file}")
         print()
 
-        # training done
+        # training done wait until cloud acknowledges that it has acknowledged that training is done
         utils.send_message(sock, 'Done')
         while msg != 'ACK':
             msg = utils.receive_message(sock)

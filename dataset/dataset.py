@@ -67,10 +67,39 @@ class DepthDataset(Dataset):
         return sample
     
 class ToTensor(object):
+    """
+    Class that converts a PIL image or numpy array to a torch tensor.
+
+    Args:
+        object: Superclass.
+        is_test (bool, optional): Specifies if obtaining testing or training data. Defaults to False.
+
+    Methods:
+        __call__(sample): Converts a PIL image or numpy array to a torch tensor.
+        to_tensor(pic): Converts a PIL image or numpy array to a torch tensor.
+    """
     def __init__(self, is_test=False):
+        """
+        Constructor for ToTensor class.
+
+        Args:
+            is_test (bool, optional): Specifies if obtaining testing or training data. Defaults to False.
+
+        Returns:
+            None
+        """
         self.is_test = is_test
 
     def __call__(self, sample):
+        """
+        Returns a dictionary containing the converted PIL image or numpy array to a torch tensor.
+
+        Args:
+            sample (dict): A dictionary containing the image and depth.
+
+        Returns:
+            dict: A dictionary containing the converted PIL image or numpy array to a torch tensor.
+        """
         image, depth = sample["image"], sample["depth"]
 
         image = self.to_tensor(image)
@@ -86,6 +115,15 @@ class ToTensor(object):
         return {"image": image, "depth": depth}
 
     def to_tensor(self, pic):
+        """
+        Method that converts a PIL image or numpy array to a torch tensor.
+
+        Args:
+            pic (PIL Image or numpy array): A PIL image or numpy array.
+
+        Returns:
+            torch.Tensor: A torch tensor of the converted PIL image or numpy array.
+        """
         if not (_check_pil(pic) or _check_np_img(pic)):
             raise TypeError(
                 "pic should be PIL Image or ndarray. Got {}".format(type(pic))
@@ -212,7 +250,13 @@ def loadZipToMem(zip_file,train_test="train"):
     return data, nyu2_train
 
 class RandomHorizontalFlip(object):
+    """
+    Class that randomly flips an image horizontally.
+    """
     def __call__(self, sample):
+        """
+        Returns a dictionary containing the flipped PIL image and depth.
+        """
 
         img, depth = sample["image"], sample["depth"]
 

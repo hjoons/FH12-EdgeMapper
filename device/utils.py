@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import sys
 
+# Add parent directory to path to be able to import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
 import dataset.h5dataset as h5dataset
@@ -59,7 +60,8 @@ def colorize(
 
 def DepthNorm(depth, max_depth=1000.0):
     """
-    Normalize depth values.
+    Normalize depth values. The depth values are transformed by dividing the maximum depth value by the depth value so that depth values 
+    that there is more granularity in the smaller depth values.
 
     Args:
         depth (float): Depth value to be normalized.
